@@ -197,26 +197,45 @@ def check_mesh_overlap(mesh1, mesh2):
     bm2.free()
     return False
 
+
 def fix_overlaps(lattice_obj, models):
-    overlap_detected = True
+    """Adjust the lattice to fix overlaps between models."""
     max_iterations = 10
     iteration = 0
-    
-    while overlap_detected and iteration < max_iterations:
+
+    while iteration < max_iterations:
         overlap_detected = False
+
+        # Check for overlaps between all pairs of models
         for i, model in enumerate(models):
             for j, other_model in enumerate(models):
                 if i != j:
                     if check_mesh_overlap(model, other_model):
                         overlap_detected = True
-                        # Adjust lattice to fix overlap
+                        # Adjust lattice points to try and fix overlap
                         for point in lattice_obj.data.points:
-                            # Simple adjustment: move the point slightly to fix overlap
                             point.co_deform.x += random.uniform(-0.05, 0.05)
                             point.co_deform.y += random.uniform(-0.05, 0.05)
                             point.co_deform.z += random.uniform(-0.05, 0.05)
-        bpy.context.view_layer.update()
+
+                        # Apply the lattice transform to all models
+                        for m in models:
+                            apply_lattice_to_object(m, lattice_obj)
+                        
+                        # Update view to reflect changes
+                        bpy.context.view_layer.update()
+
+        if not overlap_detected:
+            break
+        
         iteration += 1
+
+    # Final application of the lattice transform to ensure all adjustments are applied
+    for m in models:
+        apply_lattice_to_object(m, lattice_obj)
+    bpy.context.view_layer.update()
+
+
 
 # GA
 def evaluate(individual):
@@ -471,7 +490,7 @@ print("Best individual transformations applied to lattice:", transformations)
 fix_overlaps(lattice, matched_start_models + matched_end_models)
 print("Overlaps fixed.")
 
-## EX{ERIMENTAL ##
+## EXPERIMENTAL ##
 
 
 end_time = time.time()  # 프로그램 실행 종료 시간
