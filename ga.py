@@ -132,6 +132,7 @@ def vertex_to_lattice_cell_index(vertex_position, lattice_obj):  # get the cell 
 
 
 ##########################################################################################################################################
+## EXPERIMENTAL UTILS ##
 ##########################################################################################################################################
 # Gaussian Curvature Utils (Experimental)
 
@@ -144,9 +145,12 @@ def calculate_gaussian_curvature(vertices, faces):
     :return: np.array of shape (N,) containing Gaussian curvature for each vertex
     """
     import pymesh
+    print(pymesh.__version__)
     mesh = pymesh.form_mesh(vertices, faces)
     mesh.add_attribute("vertex_gaussian_curvature")
-    return mesh.get_attribute("vertex_gaussian_curvature")
+    gcur = mesh.get_attribute("vertex_gaussian_curvature")
+    print(f"Calculated Gaussian curvature: {gcur}\n")
+    return gcur
 
 def compare_gaussian_curvature(vertices1, faces1, vertices2, faces2):
     """
@@ -156,6 +160,8 @@ def compare_gaussian_curvature(vertices1, faces1, vertices2, faces2):
     :param faces1, faces2: np.arrays of shape (M, 3) containing face indices
     :return: float, the mean squared difference in Gaussian curvature
     """
+    import time
+    s = time.time()
     gc1 = calculate_gaussian_curvature(vertices1, faces1)
     gc2 = calculate_gaussian_curvature(vertices2, faces2)
     
@@ -164,8 +170,29 @@ def compare_gaussian_curvature(vertices1, faces1, vertices2, faces2):
     
     # Calculate mean squared difference
     mse = np.mean((gc1 - gc2)**2)
-    
+    e = time.time()
+    print(f"Time taken to compare Gaussian curvature of two meshes: {e - s:.2f} seconds")
     return mse
+
+
+# Overlap Detection Utils (Experimental)
+
+def check_mesh_overlap(obj1, obj2):
+    # Use bounding box for simple overlap detection
+    bbox1 = [obj1.matrix_world @ Vector(corner) for corner in obj1.bound_box]
+    bbox2 = [obj2.matrix_world @ Vector(corner) for corner in obj2.bound_box]
+
+    bbox1_min = Vector((min(v.x for v in bbox1), min(v.y for v in bbox1), min(v.z for v in bbox1)))
+    bbox1_max = Vector((max(v.x for v in bbox1), max(v.y for v in bbox1), max(v.z for v in bbox1)))
+
+    bbox2_min = Vector((min(v.x for v in bbox2), min(v.y for v in bbox2), min(v.z for v in bbox2)))
+    bbox2_max = Vector((max(v.x for v in bbox2), max(v.y for v in bbox2), max(v.z for v in bbox2)))
+
+    overlap_x = (bbox1_min.x <= bbox2_max.x and bbox1_max.x >= bbox2_min.x)
+    overlap_y = (bbox1_min.y <= bbox2_max.y and bbox1_max.y >= bbox2_min.y)
+    overlap_z = (bbox1_min.z <= bbox2_max.z and bbox1_max.z >= bbox2_min.z)
+
+    return overlap_x and overlap_y and overlap_z
 
 ##########################################################################################################################################
 ##########################################################################################################################################
@@ -178,14 +205,19 @@ def evaluate(individual):
     evaluate_start_time = time.time()
     total_distance = 0
     total_curvature_diff = 0
+    overlap_penalty = 0
     curvature_weight = 1000  # Adjust this value as needed
+
+    # Apply transformations to the lattice
+    transformations = [(individual[i], individual[i+1], individual[i+2]) for i in range(0, len(individual), 3)]
+    apply_transformation_to_lattice(lattice, transformations)
+    bpy.context.view_layer.update()
 
     for i, (start_model, end_model) in enumerate(zip(matched_start_models, matched_end_models)):
         reset_lattice(lattice)
-        transformations = [(individual[i], individual[i+1], individual[i+2]) for i in range(0, len(individual), 3)]
         apply_transformation_to_lattice(lattice, transformations)
-
         bpy.context.view_layer.update()
+
         transformed_vertices = get_transformed_vertex_positions(start_model)
         target_vertices = end_model_vertices[i]
 
@@ -199,12 +231,6 @@ def evaluate(individual):
                     for i in range(1, len(poly.vertices) - 1):
                         faces.append([poly.vertices[0], poly.vertices[i], poly.vertices[i+1]])
             return np.array(faces, dtype=np.int32)
-        """
-        ValueError: setting an array element with a sequence.
-        The requested array has an inhomogeneous shape after 1 dimensions.
-        The detected shape was (13318,) + inhomogeneous part.
-
-        """
 
         # Get faces for both models
         start_faces = get_faces_as_array(start_model)
@@ -228,8 +254,14 @@ def evaluate(individual):
 
         total_curvature_diff += curvature_diff
 
-    # Combine distance and curvature difference in the fitness
-    fitness = total_distance + total_curvature_diff * curvature_weight
+        # Check for overlaps with other start models
+        for j, other_model in enumerate(matched_start_models):
+            if i != j:  # Do not compare the model with itself
+                if check_mesh_overlap(start_model, other_model):
+                    overlap_penalty += 100  # Arbitrary penalty value for overlap
+
+    # Combine distance, curvature difference, and overlap penalty in the fitness
+    fitness = total_distance + total_curvature_diff * curvature_weight + overlap_penalty
     return fitness,
 
 
