@@ -1,4 +1,4 @@
-import bpy
+import bpy, bmesh
 from deap import base, creator, tools, algorithms
 import random
 import numpy as np
@@ -177,36 +177,53 @@ def compare_gaussian_curvature(vertices1, faces1, vertices2, faces2):
 
 # Overlap Detection Utils (Experimental)
 
-def check_mesh_overlap(obj1, obj2):
-    # Use bounding box for simple overlap detection
-    bbox1 = [obj1.matrix_world @ Vector(corner) for corner in obj1.bound_box]
-    bbox2 = [obj2.matrix_world @ Vector(corner) for corner in obj2.bound_box]
+def check_mesh_overlap(mesh1, mesh2):
+    bm1 = bmesh.new()
+    bm2 = bmesh.new()
+    bm1.from_mesh(mesh1.data)
+    bm2.from_mesh(mesh2.data)
+    
+    bm1.transform(mesh1.matrix_world)
+    bm2.transform(mesh2.matrix_world)
+    
+    for face1 in bm1.faces:
+        for face2 in bm2.faces:
+            if face1.intersect(face2):
+                bm1.free()
+                bm2.free()
+                return True
+                
+    bm1.free()
+    bm2.free()
+    return False
 
-    bbox1_min = Vector((min(v.x for v in bbox1), min(v.y for v in bbox1), min(v.z for v in bbox1)))
-    bbox1_max = Vector((max(v.x for v in bbox1), max(v.y for v in bbox1), max(v.z for v in bbox1)))
-
-    bbox2_min = Vector((min(v.x for v in bbox2), min(v.y for v in bbox2), min(v.z for v in bbox2)))
-    bbox2_max = Vector((max(v.x for v in bbox2), max(v.y for v in bbox2), max(v.z for v in bbox2)))
-
-    overlap_x = (bbox1_min.x <= bbox2_max.x and bbox1_max.x >= bbox2_min.x)
-    overlap_y = (bbox1_min.y <= bbox2_max.y and bbox1_max.y >= bbox2_min.y)
-    overlap_z = (bbox1_min.z <= bbox2_max.z and bbox1_max.z >= bbox2_min.z)
-
-    return overlap_x and overlap_y and overlap_z
-
-##########################################################################################################################################
-##########################################################################################################################################
-
-
-
+def fix_overlaps(lattice_obj, models):
+    overlap_detected = True
+    max_iterations = 10
+    iteration = 0
+    
+    while overlap_detected and iteration < max_iterations:
+        overlap_detected = False
+        for i, model in enumerate(models):
+            for j, other_model in enumerate(models):
+                if i != j:
+                    if check_mesh_overlap(model, other_model):
+                        overlap_detected = True
+                        # Adjust lattice to fix overlap
+                        for point in lattice_obj.data.points:
+                            # Simple adjustment: move the point slightly to fix overlap
+                            point.co_deform.x += random.uniform(-0.05, 0.05)
+                            point.co_deform.y += random.uniform(-0.05, 0.05)
+                            point.co_deform.z += random.uniform(-0.05, 0.05)
+        bpy.context.view_layer.update()
+        iteration += 1
 
 # GA
 def evaluate(individual):
-    evaluate_start_time = time.time()
     total_distance = 0
     total_curvature_diff = 0
     overlap_penalty = 0
-    curvature_weight = 1000  # Adjust this value as needed
+    curvature_weight = 1000
 
     # Apply transformations to the lattice
     transformations = [(individual[i], individual[i+1], individual[i+2]) for i in range(0, len(individual), 3)]
@@ -227,25 +244,20 @@ def evaluate(individual):
                 if len(poly.vertices) == 3:
                     faces.append([poly.vertices[0], poly.vertices[1], poly.vertices[2]])
                 elif len(poly.vertices) > 3:
-                    # Triangulate the polygon
                     for i in range(1, len(poly.vertices) - 1):
                         faces.append([poly.vertices[0], poly.vertices[i], poly.vertices[i+1]])
             return np.array(faces, dtype=np.int32)
 
-        # Get faces for both models
         start_faces = get_faces_as_array(start_model)
         end_faces = get_faces_as_array(end_model)
         
-        # Compare Gaussian curvature
         try:
             curvature_diff = compare_gaussian_curvature(
                 transformed_vertices, start_faces,
                 target_vertices, end_faces
             )
-            print(f"Curvature difference: {curvature_diff}")
         except Exception as e:
-            print(f"Error in curvature comparison: {e}")
-            curvature_diff = 0  # or some large penalty value
+            curvature_diff = 0
 
         selected_indices_for_model = selected_indices[i] 
         size_weight = normalized_start_model_sizes[start_model.name]
@@ -254,15 +266,14 @@ def evaluate(individual):
 
         total_curvature_diff += curvature_diff
 
-        # Check for overlaps with other start models
         for j, other_model in enumerate(matched_start_models):
-            if i != j:  # Do not compare the model with itself
+            if i != j:
                 if check_mesh_overlap(start_model, other_model):
                     overlap_penalty += 100  # Arbitrary penalty value for overlap
 
-    # Combine distance, curvature difference, and overlap penalty in the fitness
     fitness = total_distance + total_curvature_diff * curvature_weight + overlap_penalty
     return fitness,
+
 
 
 clear_lattice_modifier()
@@ -448,6 +459,21 @@ transformations = [(best_individual[i*3], best_individual[i*3+1], best_individua
 reset_lattice(lattice)
 apply_transformation_to_lattice(lattice, transformations)
 print("최적의 개체의 적합도:", best_individual.fitness.values[0])
+
+
+## EXPERIMENTAL ##
+
+bpy.context.view_layer.update()
+
+print("Best individual transformations applied to lattice:", transformations)
+
+# Fix overlaps after applying the best transformation
+fix_overlaps(lattice, matched_start_models + matched_end_models)
+print("Overlaps fixed.")
+
+## EX{ERIMENTAL ##
+
+
 end_time = time.time()  # 프로그램 실행 종료 시간
 total_time = end_time - start_time
 print(f"프로그램 총 실행 시간: {total_time}초")
