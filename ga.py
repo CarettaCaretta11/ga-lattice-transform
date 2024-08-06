@@ -203,6 +203,14 @@ def fix_overlaps(lattice_obj, models):
     max_iterations = 10
     iteration = 0
 
+    def get_closest_lattice_points(lattice_obj, vertex, threshold=0.2):
+        """Get lattice points close to the given vertex."""
+        closest_points = []
+        for point in lattice_obj.data.points:
+            if (Vector(point.co_deform) - Vector(vertex)).length < threshold:
+                closest_points.append(point)
+        return closest_points
+
     while iteration < max_iterations:
         overlap_detected = False
 
@@ -212,15 +220,32 @@ def fix_overlaps(lattice_obj, models):
                 if i != j:
                     if check_mesh_overlap(model, other_model):
                         overlap_detected = True
-                        # Adjust lattice points to try and fix overlap
-                        for point in lattice_obj.data.points:
-                            point.co_deform.x += random.uniform(-0.05, 0.05)
-                            point.co_deform.y += random.uniform(-0.05, 0.05)
-                            point.co_deform.z += random.uniform(-0.05, 0.05)
+                        # Get overlapping region vertices
+                        overlap_vertices = get_overlap_vertices(model, other_model)
+                        for vertex in overlap_vertices:
+                            # Get lattice points near the overlapping vertex
+                            closest_points = get_closest_lattice_points(lattice_obj, vertex)
 
-                        # Apply the lattice transform to all models
-                        for m in models:
-                            apply_lattice_to_object(m, lattice_obj)
+                            for point in closest_points:
+                                # Apply symmetrical adjustment
+                                dx = random.uniform(-0.05, 0.05)
+                                dy = random.uniform(-0.05, 0.05)
+                                dz = random.uniform(-0.05, 0.05)
+
+                                point.co_deform.x += dx
+                                point.co_deform.y += dy
+                                point.co_deform.z += dz
+
+                                # Find the corresponding symmetrical point and apply the same adjustment
+                                sym_point = find_symmetrical_point(lattice_obj, point)
+                                if sym_point:
+                                    sym_point.co_deform.x += dx
+                                    sym_point.co_deform.y += dy
+                                    sym_point.co_deform.z += dz
+
+                        # Apply the lattice transform to the model
+                        apply_lattice_to_object(model, lattice_obj)
+                        apply_lattice_to_object(other_model, lattice_obj)
                         
                         # Update view to reflect changes
                         bpy.context.view_layer.update()
@@ -234,6 +259,32 @@ def fix_overlaps(lattice_obj, models):
     for m in models:
         apply_lattice_to_object(m, lattice_obj)
     bpy.context.view_layer.update()
+
+
+def find_symmetrical_point(lattice_obj, point):
+    """Find the point symmetrical to the given point in the lattice."""
+    # Assuming symmetry around the origin
+    sym_co = Vector(point.co_deform) * -1
+    for p in lattice_obj.data.points:
+        if (Vector(p.co_deform) - sym_co).length < 0.001:
+            return p
+    return None
+
+
+def is_point_inside_mesh(point, mesh_obj):
+    """Check if a point is inside a mesh."""
+    result, location, normal, index = mesh_obj.closest_point_on_mesh(point)
+    return result
+
+
+def get_overlap_vertices(model, other_model):
+    """Get vertices in the overlap region between two models."""
+    overlap_vertices = []
+    for v in model.data.vertices:
+        global_v = model.matrix_world @ v.co
+        if is_point_inside_mesh(global_v, other_model):
+            overlap_vertices.append(global_v)
+    return overlap_vertices
 
 
 
