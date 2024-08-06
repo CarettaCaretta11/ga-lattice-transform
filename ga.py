@@ -5,6 +5,7 @@ import numpy as np
 import time
 import math
 from mathutils import Vector
+from mathutils.bvhtree import BVHTree
 from collections import defaultdict, Counter
 start_time = time.time()
 
@@ -177,26 +178,40 @@ def compare_gaussian_curvature(vertices1, faces1, vertices2, faces2):
 
 # Overlap Detection Utils (Experimental)
 
+# def check_mesh_overlap(mesh1, mesh2):
+#     bm1 = bmesh.new()
+#     bm2 = bmesh.new()
+#     bm1.from_mesh(mesh1.data)
+#     bm2.from_mesh(mesh2.data)
+    
+#     bm1.transform(mesh1.matrix_world)
+#     bm2.transform(mesh2.matrix_world)
+    
+#     for face1 in bm1.faces:
+#         for face2 in bm2.faces:
+#             if face1.intersect(face2):
+#                 bm1.free()
+#                 bm2.free()
+#                 return True
+                
+#     bm1.free()
+#     bm2.free()
+#     return False
+
+
 def check_mesh_overlap(mesh1, mesh2):
     bm1 = bmesh.new()
-    bm2 = bmesh.new()
     bm1.from_mesh(mesh1.data)
+    bm2 = bmesh.new()
     bm2.from_mesh(mesh2.data)
-    
     bm1.transform(mesh1.matrix_world)
     bm2.transform(mesh2.matrix_world)
-    
-    for face1 in bm1.faces:
-        for face2 in bm2.faces:
-            if face1.intersect(face2):
-                bm1.free()
-                bm2.free()
-                return True
-                
+    tree1 = BVHTree.FromBMesh(bm1)
+    tree2 = BVHTree.FromBMesh(bm2)
+    overlap = tree1.overlap(tree2)
     bm1.free()
     bm2.free()
-    return False
-
+    return len(overlap) > 0
 
 def fix_overlaps(lattice_obj, models):
     """Adjust the lattice to fix overlaps between models."""
