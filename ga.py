@@ -234,9 +234,12 @@ def fix_overlaps(lattice_obj, models):
             for j, other_model in enumerate(models):
                 if i != j:
                     if check_mesh_overlap(model, other_model):
+                        print(f"Overlap detected between {model.name} and {other_model.name}")
                         overlap_detected = True
                         # Get overlapping region vertices
+                        print("Getting overlap vertices...")
                         overlap_vertices = get_overlap_vertices(model, other_model)
+                        print("Done.")
                         for vertex in overlap_vertices:
                             # Get lattice points near the overlapping vertex
                             closest_points = get_closest_lattice_points(lattice_obj, vertex)
@@ -259,10 +262,12 @@ def fix_overlaps(lattice_obj, models):
                                     sym_point.co_deform.z += dz
 
                         # Apply the lattice transform to the model
+                        print(f"Applying lattice to {model.name} and {other_model.name}...")
                         apply_lattice_to_object(model, lattice_obj)
                         apply_lattice_to_object(other_model, lattice_obj)
                         
                         # Update view to reflect changes
+                        print("Updating view...")
                         bpy.context.view_layer.update()
 
         if not overlap_detected:
@@ -511,7 +516,7 @@ toolbox.register("mate", tools.cxBlend, alpha=0.5)
 toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=0.2)
 toolbox.register("select", tools.selTournament, tournsize=3)
 
-NGEN = 10
+NGEN = 1
 population = toolbox.population(n=10) 
 
 print("Start")
@@ -553,6 +558,7 @@ bpy.context.view_layer.update()
 print("Best individual transformations applied to lattice:", transformations)
 
 # Fix overlaps after applying the best transformation
+print ("\n\nFixing overlaps...\n\n")
 fix_overlaps(lattice, matched_start_models + matched_end_models)
 print("Overlaps fixed.")
 
