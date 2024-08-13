@@ -6,6 +6,7 @@ import time
 import math
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
+import matplotlib.pyplot as plt
 from collections import defaultdict, Counter
 start_time = time.time()
 
@@ -199,112 +200,112 @@ def compare_gaussian_curvature(vertices1, faces1, vertices2, faces2):
 #     return False
 
 
-def check_mesh_overlap(mesh1, mesh2):
-    bm1 = bmesh.new()
-    bm1.from_mesh(mesh1.data)
-    bm2 = bmesh.new()
-    bm2.from_mesh(mesh2.data)
-    bm1.transform(mesh1.matrix_world)
-    bm2.transform(mesh2.matrix_world)
-    tree1 = BVHTree.FromBMesh(bm1)
-    tree2 = BVHTree.FromBMesh(bm2)
-    overlap = tree1.overlap(tree2)
-    bm1.free()
-    bm2.free()
-    return len(overlap) > 0
+# def check_mesh_overlap(mesh1, mesh2):
+#     bm1 = bmesh.new()
+#     bm1.from_mesh(mesh1.data)
+#     bm2 = bmesh.new()
+#     bm2.from_mesh(mesh2.data)
+#     bm1.transform(mesh1.matrix_world)
+#     bm2.transform(mesh2.matrix_world)
+#     tree1 = BVHTree.FromBMesh(bm1)
+#     tree2 = BVHTree.FromBMesh(bm2)
+#     overlap = tree1.overlap(tree2)
+#     bm1.free()
+#     bm2.free()
+#     return len(overlap) > 0
 
-def fix_overlaps(lattice_obj, models):
-    """Adjust the lattice to fix overlaps between models."""
-    max_iterations = 10
-    iteration = 0
+# def fix_overlaps(lattice_obj, models):
+#     """Adjust the lattice to fix overlaps between models."""
+#     max_iterations = 10
+#     iteration = 0
 
-    def get_closest_lattice_points(lattice_obj, vertex, threshold=0.2):
-        """Get lattice points close to the given vertex."""
-        closest_points = []
-        for point in lattice_obj.data.points:
-            if (Vector(point.co_deform) - Vector(vertex)).length < threshold:
-                closest_points.append(point)
-        return closest_points
+#     def get_closest_lattice_points(lattice_obj, vertex, threshold=0.2):
+#         """Get lattice points close to the given vertex."""
+#         closest_points = []
+#         for point in lattice_obj.data.points:
+#             if (Vector(point.co_deform) - Vector(vertex)).length < threshold:
+#                 closest_points.append(point)
+#         return closest_points
 
-    while iteration < max_iterations:
-        overlap_detected = False
+#     while iteration < max_iterations:
+#         overlap_detected = False
 
-        # Check for overlaps between all pairs of models
-        for i, model in enumerate(models):
-            for j, other_model in enumerate(models):
-                if i != j:
-                    if check_mesh_overlap(model, other_model):
-                        print(f"Overlap detected between {model.name} and {other_model.name}")
-                        overlap_detected = True
-                        # Get overlapping region vertices
-                        print("Getting overlap vertices...")
-                        overlap_vertices = get_overlap_vertices(model, other_model)
-                        print("Done.")
-                        for vertex in overlap_vertices:
-                            # Get lattice points near the overlapping vertex
-                            closest_points = get_closest_lattice_points(lattice_obj, vertex)
+#         # Check for overlaps between all pairs of models
+#         for i, model in enumerate(models):
+#             for j, other_model in enumerate(models):
+#                 if i != j:
+#                     if check_mesh_overlap(model, other_model):
+#                         print(f"Overlap detected between {model.name} and {other_model.name}")
+#                         overlap_detected = True
+#                         # Get overlapping region vertices
+#                         print("Getting overlap vertices...")
+#                         overlap_vertices = get_overlap_vertices(model, other_model)
+#                         print("Done.")
+#                         for vertex in overlap_vertices:
+#                             # Get lattice points near the overlapping vertex
+#                             closest_points = get_closest_lattice_points(lattice_obj, vertex)
 
-                            for point in closest_points:
-                                # Apply symmetrical adjustment
-                                dx = random.uniform(-0.05, 0.05)
-                                dy = random.uniform(-0.05, 0.05)
-                                dz = random.uniform(-0.05, 0.05)
+#                             for point in closest_points:
+#                                 # Apply symmetrical adjustment
+#                                 dx = random.uniform(-0.05, 0.05)
+#                                 dy = random.uniform(-0.05, 0.05)
+#                                 dz = random.uniform(-0.05, 0.05)
 
-                                point.co_deform.x += dx
-                                point.co_deform.y += dy
-                                point.co_deform.z += dz
+#                                 point.co_deform.x += dx
+#                                 point.co_deform.y += dy
+#                                 point.co_deform.z += dz
 
-                                # Find the corresponding symmetrical point and apply the same adjustment
-                                sym_point = find_symmetrical_point(lattice_obj, point)
-                                if sym_point:
-                                    sym_point.co_deform.x += dx
-                                    sym_point.co_deform.y += dy
-                                    sym_point.co_deform.z += dz
+#                                 # Find the corresponding symmetrical point and apply the same adjustment
+#                                 sym_point = find_symmetrical_point(lattice_obj, point)
+#                                 if sym_point:
+#                                     sym_point.co_deform.x += dx
+#                                     sym_point.co_deform.y += dy
+#                                     sym_point.co_deform.z += dz
 
-                        # Apply the lattice transform to the model
-                        print(f"Applying lattice to {model.name} and {other_model.name}...")
-                        apply_lattice_to_object(model, lattice_obj)
-                        apply_lattice_to_object(other_model, lattice_obj)
+#                         # Apply the lattice transform to the model
+#                         print(f"Applying lattice to {model.name} and {other_model.name}...")
+#                         apply_lattice_to_object(model, lattice_obj)
+#                         apply_lattice_to_object(other_model, lattice_obj)
                         
-                        # Update view to reflect changes
-                        print("Updating view...")
-                        bpy.context.view_layer.update()
+#                         # Update view to reflect changes
+#                         print("Updating view...")
+#                         bpy.context.view_layer.update()
 
-        if not overlap_detected:
-            break
+#         if not overlap_detected:
+#             break
         
-        iteration += 1
+#         iteration += 1
 
-    # Final application of the lattice transform to ensure all adjustments are applied
-    for m in models:
-        apply_lattice_to_object(m, lattice_obj)
-    bpy.context.view_layer.update()
-
-
-def find_symmetrical_point(lattice_obj, point):
-    """Find the point symmetrical to the given point in the lattice."""
-    # Assuming symmetry around the origin
-    sym_co = Vector(point.co_deform) * -1
-    for p in lattice_obj.data.points:
-        if (Vector(p.co_deform) - sym_co).length < 0.001:
-            return p
-    return None
+#     # Final application of the lattice transform to ensure all adjustments are applied
+#     for m in models:
+#         apply_lattice_to_object(m, lattice_obj)
+#     bpy.context.view_layer.update()
 
 
-def is_point_inside_mesh(point, mesh_obj):
-    """Check if a point is inside a mesh."""
-    result, location, normal, index = mesh_obj.closest_point_on_mesh(point)
-    return result
+# def find_symmetrical_point(lattice_obj, point):
+#     """Find the point symmetrical to the given point in the lattice."""
+#     # Assuming symmetry around the origin
+#     sym_co = Vector(point.co_deform) * -1
+#     for p in lattice_obj.data.points:
+#         if (Vector(p.co_deform) - sym_co).length < 0.001:
+#             return p
+#     return None
 
 
-def get_overlap_vertices(model, other_model):
-    """Get vertices in the overlap region between two models."""
-    overlap_vertices = []
-    for v in model.data.vertices:
-        global_v = model.matrix_world @ v.co
-        if is_point_inside_mesh(global_v, other_model):
-            overlap_vertices.append(global_v)
-    return overlap_vertices
+# def is_point_inside_mesh(point, mesh_obj):
+#     """Check if a point is inside a mesh."""
+#     result, location, normal, index = mesh_obj.closest_point_on_mesh(point)
+#     return result
+
+
+# def get_overlap_vertices(model, other_model):
+#     """Get vertices in the overlap region between two models."""
+#     overlap_vertices = []
+#     for v in model.data.vertices:
+#         global_v = model.matrix_world @ v.co
+#         if is_point_inside_mesh(global_v, other_model):
+#             overlap_vertices.append(global_v)
+#     return overlap_vertices
 
 
 
@@ -312,7 +313,7 @@ def get_overlap_vertices(model, other_model):
 def evaluate(individual):
     total_distance = 0
     total_curvature_diff = 0
-    overlap_penalty = 0
+    # overlap_penalty = 0
     curvature_weight = 1000
 
     # Apply transformations to the lattice
@@ -347,6 +348,7 @@ def evaluate(individual):
                 target_vertices, end_faces
             )
         except Exception as e:
+            print("Error calculating Gaussian curvature:", e)
             curvature_diff = 0
 
         selected_indices_for_model = selected_indices[i] 
@@ -356,12 +358,13 @@ def evaluate(individual):
 
         total_curvature_diff += curvature_diff
 
-        for j, other_model in enumerate(matched_start_models):
-            if i != j:
-                if check_mesh_overlap(start_model, other_model):
-                    overlap_penalty += 100  # Arbitrary penalty value for overlap
+        # for j, other_model in enumerate(matched_start_models):
+        #     if i != j:
+        #         if check_mesh_overlap(start_model, other_model):
+        #             overlap_penalty += 100  # Arbitrary penalty value for overlap
 
-    fitness = total_distance + total_curvature_diff * curvature_weight + overlap_penalty
+    # fitness = total_distance + total_curvature_diff * curvature_weight + overlap_penalty
+    fitness = total_distance + total_curvature_diff * curvature_weight
     return fitness,
 
 
@@ -372,7 +375,7 @@ lattice_location = (0, 0, 0.8)  # location of the lattice origin
 lattice_scale = (1.6, 1.6, 1.6)
 subdivisions = 15  # 15x15x15 lattice
 
-lattice_name = "OptimizedLattice"
+lattice_name = "OptimizedLattice_w_GaussianCurvature"
 lattice = create_and_setup_lattice(lattice_name, lattice_location, lattice_scale, subdivisions)
 
 # start_collection_group_name = "MOE"
@@ -516,7 +519,11 @@ toolbox.register("mate", tools.cxBlend, alpha=0.5)
 toolbox.register("mutate", tools.mutGaussian, mu=0, sigma=1, indpb=0.2)
 toolbox.register("select", tools.selTournament, tournsize=3)
 
-NGEN = 1
+
+min_fitness_values = []
+mean_fitness_values = []
+
+NGEN = 10
 population = toolbox.population(n=10) 
 
 print("Start")
@@ -532,6 +539,9 @@ for gen in range(NGEN):
     mean = sum(lengths) / len(population)
     minimum = min(lengths)
 
+    min_fitness_values.append(minimum)
+    mean_fitness_values.append(mean)
+
     gen_end_time = time.time()
     gen_time = gen_end_time - gen_start_time
     print(f"세대 {gen+1}/{NGEN} - 최소 적합도: {minimum}, 평균 적합도: {mean}, 계산 시간: {gen_time:.2f}초")
@@ -540,6 +550,17 @@ for gen in range(NGEN):
     estimated_total_time = (elapsed_time / (gen + 1)) * NGEN
     remaining_time = estimated_total_time - elapsed_time
     print(f"예상 남은 시간: {remaining_time:.2f}초")
+
+# Plot the results
+plt.figure(figsize=(10, 6))
+plt.plot(range(1, NGEN + 1), min_fitness_values, label='Minimum Fitness')
+plt.plot(range(1, NGEN + 1), mean_fitness_values, label='Mean Fitness')
+plt.xlabel('Generation')
+plt.ylabel('Fitness')
+plt.title('GA Convergence')
+plt.legend()
+plt.grid(True)
+plt.show()
     
 best_individual = tools.selBest(population, 1)[0]
 
@@ -558,9 +579,9 @@ bpy.context.view_layer.update()
 print("Best individual transformations applied to lattice:", transformations)
 
 # Fix overlaps after applying the best transformation
-print ("\n\nFixing overlaps...\n\n")
-fix_overlaps(lattice, matched_start_models + matched_end_models)
-print("Overlaps fixed.")
+# print ("\n\nFixing overlaps...\n\n")
+# fix_overlaps(lattice, matched_start_models + matched_end_models)
+# print("Overlaps fixed.")
 
 ## EXPERIMENTAL ##
 
